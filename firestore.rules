@@ -1,0 +1,152 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: userId (Firebase Auth UID)
+    // Fields:
+    //   - uid: string (required)
+    //   - email: string (required)
+    //   - role: string (required, ['admin', 'staff', 'guest', 'pending'])
+    //   - displayName: string (optional)
+    //
+    // Collection: indicators
+    // Document ID: auto-generated
+    // Fields:
+    //   - group_id: string (required)
+    //   - group_title: string (required)
+    //   - sub_group_char: string (required)
+    //   - sub_group_title: string (required)
+    //   - sub_sub_group_num: string (required)
+    //   - sub_sub_group_title: string (required)
+    //   - item_num: string (required)
+    //   - result_title: string (required)
+    //   - index: string (required)
+    //   - data: map (optional)
+    //
+    // Collection: logs
+    // Document ID: auto-generated
+    // Fields:
+    //   - userId: string (required)
+    //   - userEmail: string (required)
+    //   - action: string (required)
+    //   - details: string (optional)
+    //   - timestamp: timestamp (required)
+    //
+    // Collection: universities
+    // Document ID: auto-generated or manual
+    // Fields:
+    //   - id: string (required)
+    //   - name: string (required)
+    //   - abbreviation: string (required)
+    //   - color: string (optional)
+    //   - isDefault: boolean (optional)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isDefaultAdmin() {
+      return isAuthenticated() && 
+        request.auth.token.email != null && 
+        (request.auth.token.email == "podchara.kl@go.buu.ac.th" || 
+         request.auth.token.email.matches("(?i)podchara\\.kl@go\\.buu\\.ac\\.th"));
+    }
+
+    function isVerified() {
+      return isAuthenticated() && 
+        (isDefaultAdmin() ||
+         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'staff', 'guest']));
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        (isDefaultAdmin() ||
+         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'));
+    }
+
+    function isStaff() {
+      return isAuthenticated() && 
+        (isDefaultAdmin() ||
+         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'staff']));
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'role']) &&
+             data.uid is string &&
+             data.email is string &&
+             data.role in ['admin', 'staff', 'guest', 'pending'];
+    }
+
+    function isValidIndicator(data) {
+      return data.keys().hasAll(['group_id', 'result_title', 'index']) &&
+             data.group_id is string &&
+             data.result_title is string &&
+             data.index is string;
+    }
+
+    function isValidUniversity(data) {
+      return data.keys().hasAll(['id', 'name', 'abbreviation']) &&
+             data.id is string &&
+             data.name is string &&
+             data.abbreviation is string;
+    }
+
+    function isValidLog(data) {
+      return data.keys().hasAll(['userId', 'userEmail', 'action', 'timestamp']) &&
+             data.userId is string &&
+             data.userEmail is string &&
+             data.action is string &&
+             data.timestamp is timestamp;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if (isOwner(userId) && isValidUser(request.resource.data)) || isAdmin();
+      allow update: if isAdmin() && isValidUser(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /indicators/{indicatorId} {
+      allow read: if isVerified();
+      allow create: if isStaff() && isValidIndicator(request.resource.data);
+      allow update, delete: if isStaff();
+    }
+
+    match /universities/{universityId} {
+      allow read: if isVerified();
+      allow create, update: if isAdmin() && isValidUniversity(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAuthenticated() && isValidLog(request.resource.data);
+      allow update, delete: if false;
+    }
+  }
+}

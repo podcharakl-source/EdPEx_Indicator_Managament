@@ -1,0 +1,72 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and role information",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["admin", "staff"] },
+        "displayName": { "type": "string" }
+      },
+      "required": ["email", "role"]
+    },
+    "Indicator": {
+      "title": "Indicator",
+      "description": "EdPEx Indicator data",
+      "type": "object",
+      "properties": {
+        "category": { "type": "string" },
+        "sub_category": { "type": "string" },
+        "sub_sub_category": { "type": "string" },
+        "result_title": { "type": "string" },
+        "index": { "type": "string" },
+        "data": {
+          "type": "object",
+          "properties": {
+            "type": { "type": "string", "enum": ["yearly", "none"] },
+            "unit": { "type": "string" },
+            "records": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "year": { "type": "string" },
+                  "value": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      },
+      "required": ["category", "sub_category", "sub_sub_category", "result_title", "index"]
+    },
+    "Log": {
+      "title": "Log",
+      "description": "System activity logs",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "action": { "type": "string" },
+        "details": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "userEmail", "action", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/indicators/{indicatorId}": {
+      "schema": "Indicator",
+      "description": "EdPEx indicators"
+    },
+    "/logs/{logId}": {
+      "schema": "Log",
+      "description": "Activity logs"
+    }
+  }
+}
